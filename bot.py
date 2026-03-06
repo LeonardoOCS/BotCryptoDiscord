@@ -91,9 +91,6 @@ REQUEST_HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; XuxupiscoBot/2.0; +https://discord.com)"
 }
 
-# Fontes curadas.
-# type = "official" recebe mais peso.
-# Você pode adicionar/remover feeds aqui conforme preferir.
 SOURCE_FEEDS = [
     {
         "name": "CoinDesk",
@@ -393,6 +390,28 @@ def contar_palavras(texto: str) -> int:
     return len(re.findall(r"\b\w+\b", texto, flags=re.UNICODE))
 
 
+def formatar_resumo_em_paragrafos(texto: str, sentencas_por_paragrafo: int = 2) -> str:
+    sentencas = dividir_sentencas(texto)
+
+    if not sentencas:
+        return texto.strip()
+
+    paragrafos = []
+    bloco = []
+
+    for sentenca in sentencas:
+        bloco.append(sentenca)
+
+        if len(bloco) >= sentencas_por_paragrafo:
+            paragrafos.append(" ".join(bloco).strip())
+            bloco = []
+
+    if bloco:
+        paragrafos.append(" ".join(bloco).strip())
+
+    return "\n\n".join(paragrafos).strip()
+
+
 def resumir_texto_extrativo(texto: str, tema: str = "", min_palavras: int = 300, max_palavras: int = 380) -> str:
     sentencas = dividir_sentencas(texto)
 
@@ -401,7 +420,7 @@ def resumir_texto_extrativo(texto: str, tema: str = "", min_palavras: int = 300,
 
     texto_total = " ".join(sentencas)
     if contar_palavras(texto_total) <= max_palavras:
-        return texto_total
+        return formatar_resumo_em_paragrafos(texto_total)
 
     tema = normalizar_tema(tema)
     palavras_tema = TOPIC_KEYWORDS.get(tema, [tema]) if tema else []
@@ -432,7 +451,10 @@ def resumir_texto_extrativo(texto: str, tema: str = "", min_palavras: int = 300,
         elif 8 <= tamanho <= 55:
             score += 1
 
-        if any(x in s_lower for x in ["according", "announced", "said", "reported", "proposal", "update", "launch", "approval"]):
+        if any(x in s_lower for x in [
+            "according", "announced", "said", "reported",
+            "proposal", "update", "launch", "approval"
+        ]):
             score += 1
 
         ranking.append((i, score, sentenca))
@@ -473,7 +495,7 @@ def resumir_texto_extrativo(texto: str, tema: str = "", min_palavras: int = 300,
         partes.pop()
         resumo = " ".join(partes).strip()
 
-    return resumo
+    return formatar_resumo_em_paragrafos(resumo)
 
 
 def extrair_resumo_base(entry) -> str:
@@ -588,7 +610,14 @@ def limitar_embed_texto(texto: str, limite: int = 3800) -> str:
     texto = (texto or "").strip()
     if len(texto) <= limite:
         return texto
-    return texto[:limite - 3].rstrip() + "..."
+
+    texto_cortado = texto[:limite - 3].rstrip()
+
+    ultimo_paragrafo = texto_cortado.rfind("\n\n")
+    if ultimo_paragrafo > 2000:
+        texto_cortado = texto_cortado[:ultimo_paragrafo].rstrip()
+
+    return texto_cortado + "..."
 
 
 def embed_noticia(item: dict, tema: str = "") -> discord.Embed:

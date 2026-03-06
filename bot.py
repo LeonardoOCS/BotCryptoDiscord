@@ -227,7 +227,7 @@ def buscar_top10_sync() -> list[dict]:
     return resp.json()
 
 
-def buscar_noticias_sync(limite: int = 5, tema: str = "", somente_novas: bool = False) -> list[dict]:
+def buscar_noticias_sync(limite: int = 1, tema: str = "", somente_novas: bool = False) -> list[dict]:
     noticias = []
     feeds = gerar_feeds_por_tema(tema)
 
@@ -257,7 +257,7 @@ def buscar_noticias_sync(limite: int = 5, tema: str = "", somente_novas: bool = 
                 "titulo_en": titulo_en,
                 "resumo_en": resumo_en[:400],
                 "titulo_pt": traduzir_texto(titulo_en),
-                "resumo_pt": traduzir_texto(resumo_en[:400]) if resumo_en else "",
+                "resumo_pt": traduzir_texto(resumo_en[:4000]) if resumo_en else "",
                 "link": link,
                 "score": score,
             })
@@ -288,14 +288,14 @@ def embed_noticia(item: dict, tema: str = "") -> discord.Embed:
 
     embed = discord.Embed(
         title=titulo[:256],
-        description=resumo[:1000] if resumo else "Sem resumo.",
+        description=resumo[:10000] if resumo else "Sem resumo.",
         url=link
     )
 
     if tema:
         embed.add_field(name="Tema", value=tema.upper(), inline=True)
 
-    embed.set_footer(text="Notícia cripto traduzida automaticamente para português")
+    embed.set_footer(text="Notícia traduzida automaticamente para português")
     return embed
 
 
@@ -384,7 +384,7 @@ async def top10(interaction: discord.Interaction):
 )
 async def noticias(
     interaction: discord.Interaction,
-    quantidade: app_commands.Range[int, 1, 10] = 5,
+    quantidade: app_commands.Range[int, 1, 10] = 1,
     tema: str = ""
 ):
     await interaction.response.defer()
@@ -415,7 +415,7 @@ async def traduzir(interaction: discord.Interaction, texto: str):
         await interaction.followup.send(f"Erro ao traduzir: {e}")
 
 
-@tasks.loop(minutes=30)
+@tasks.loop(minutes=60)
 async def postar_noticias_automaticamente():
     if not NEWS_CHANNEL_ID:
         return
@@ -432,7 +432,7 @@ async def postar_noticias_automaticamente():
         return
 
     try:
-        itens = await asyncio.to_thread(buscar_noticias_sync, 5, "", True)
+        itens = await asyncio.to_thread(buscar_noticias_sync, 1, "", True)
 
         if not itens:
             print("Nenhuma notícia nova encontrada no ciclo atual.")

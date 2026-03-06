@@ -1,117 +1,192 @@
-# Xuxucripto Bot
+🧠 XuxuCrypto Bot
+Bot de Discord focado em notícias, dados e atualizações do ecossistema cripto e Web3, com tradução automática para português.
+O bot coleta notícias de fontes relevantes, gera resumos estruturados (~300 palavras), traduz para português e publica diretamente no Discord.
+Também oferece comandos para consultar preços de criptomoedas e ranking do mercado.
 
-Bot para Discord focado em **criptomoedas**, com suporte a:
+🚀 Funcionalidades
+📰 Notícias Web3 curadas
 
-- cotação de criptoativos em tempo real
-- top 10 moedas por market cap
-- busca de notícias relevantes do mercado cripto
-- tradução automática de conteúdo para português
-- postagem automática de notícias em canal do Discord
+O bot coleta conteúdo de fontes especializadas do setor:
+CoinDesk
+Cointelegraph
+Decrypt
+The Block
+Ethereum Foundation
+Uniswap Blog
+Chainlink Blog
+Coinbase Blog
 
----
+Cada notícia passa por um pipeline automático:
+coleta do RSS
+filtragem por palavras-chave Web3
+extração do conteúdo do artigo
+geração de resumo (~300 palavras)
+divisão em parágrafos
+tradução automática para português
+Resultado: notícias fáceis de ler diretamente no Discord.
 
-## Visão geral
+💰 Consulta de preço de criptomoedas
 
-O Xuxupisco Bot foi desenvolvido em **Python** com a biblioteca **discord.py** e utiliza fontes externas para:
+Busca dados em tempo real via CoinGecko API.
 
-- consultar preços de criptomoedas
-- buscar notícias recentes sobre o mercado cripto
-- traduzir títulos e resumos para português
-- publicar informações diretamente no Discord
+Exemplo
+/preco btc
+/preco eth
+/preco link
 
-O bot pode funcionar de duas formas:
+Retorna:
+preço em USD
+preço em BRL
+variação nas últimas 24h
+🏆 Top 10 criptomoedas
 
-1. **manual**, via comandos slash no Discord
-2. **automática**, postando notícias periodicamente em um canal específico
+Mostra as maiores criptomoedas por market cap.
 
----
+/top10
+🔎 Busca de notícias por tema
+/noticias
 
-## Funcionalidades
+ou
 
-### 1. Cotação de criptomoedas
-Comando para consultar o preço atual de ativos como:
+/noticias quantidade:3 tema:eth
+Temas disponíveis
+btc
+eth
+sol
+defi
+etf
+macro
+stablecoin
+link
+uni
+xrp
+base
+l2
+web3
 
-- BTC
-- ETH
-- SOL
-- LINK
-- UNI
-- LDO
-- XRP
-- DOGE
-- ADA
-- AVAX
-- ARB
-- OP
 
-Além do preço, o bot também mostra:
+🌍 Tradução de texto
+/traduzir texto: Hello world
 
-- valor em USD
-- valor em BRL
-- variação em 24h
-- horário da última atualização
+Traduz automaticamente para português.
 
----
+🤖 Postagem automática de notícias
 
-### 2. Top 10 do mercado
-Comando que mostra as 10 maiores criptomoedas por market cap.
+O bot pode publicar notícias automaticamente em um canal.
 
----
+Funciona da seguinte forma:
+busca novas notícias
+evita duplicações
+publica apenas conteúdo relevante
+intervalo padrão de 60 minutos
 
-### 3. Notícias cripto em português
-O bot busca notícias recentes em fontes públicas, filtra conteúdos relevantes do mercado cripto e traduz automaticamente para português.
+⚙️ Instalação
+1️⃣ Clonar o projeto
+git clone https://github.com/seu-repositorio/xuxucrypto-bot.git
 
-Também é possível filtrar por tema, como:
+ou simplesmente baixe os arquivos.
 
-- BTC
-- ETH
-- SOL
-- DeFi
-- ETF
-- macro
-- stablecoins
-- LINK
-- UNI
-- XRP
-- Base
-- Layer 2
+2️⃣ Instalar dependências
+pip install discord.py
+pip install feedparser
+pip install requests
+pip install beautifulsoup4
+pip install deep-translator
+pip install python-dotenv
 
----
+ou usando:
 
-### 4. Tradução
-Comando para traduzir qualquer texto para português.
+pip install -r requirements.txt
+🔐 Configuração
 
----
+Crie um arquivo .env na raiz do projeto.
 
-### 5. Postagem automática
-Opcionalmente, o bot pode publicar notícias sozinho em um canal do Discord, sem necessidade de comandos manuais.
+Exemplo:
+DISCORD_BOT_TOKEN=SEU_TOKEN_AQUI
+ENABLE_AUTO_NEWS=true
+DISCORD_NEWS_CHANNEL_ID=ID_DO_CANAL
 
-Esse modo pode:
+Variáveis
+DISCORD_BOT_TOKEN
 
-- checar notícias em intervalos regulares
-- enviar apenas links novos
-- evitar repetição de conteúdo
-- manter um histórico local das notícias já publicadas
+Token do bot criado no Discord Developer Portal.
 
----
+ENABLE_AUTO_NEWS
 
-## Tecnologias utilizadas
+true
 
-- Python
-- discord.py
-- requests
-- feedparser
-- deep-translator
-- python-dotenv
+Ativa postagem automática de notícias.
 
----
+DISCORD_NEWS_CHANNEL_ID
 
-## Estrutura sugerida do projeto
+ID do canal onde o bot irá postar notícias automaticamente.
 
-```bash
-projeto/
+▶️ Executando o bot
+
+No terminal:
+python bot.py
+ou
+python3 bot.py
+
+Se estiver tudo correto aparecerá:
+
+Bot online como XuxuCrypto
+Slash commands sincronizados com sucesso.
+📂 Estrutura do projeto
+project/
+│
 ├─ bot.py
 ├─ .env
-├─ requirements.txt
-└─ data/
-   └─ sent_news.json
+│
+├─ data/
+│   └─ sent_news.json
+│
+└─ README.md
+sent_news.json
+
+Arquivo usado para registrar links já enviados e evitar duplicação de notícias.
+
+🧠 Como o sistema de notícias funciona
+
+Pipeline simplificado:
+
+RSS feeds
+   ↓
+Filtro de relevância
+   ↓
+Extração do artigo
+   ↓
+Resumo automático
+   ↓
+Tradução
+   ↓
+Formatação em parágrafos
+   ↓
+Publicação no Discord
+🧩 Tecnologias utilizadas
+
+Python
+
+Discord.py
+
+BeautifulSoup
+
+Feedparser
+
+CoinGecko API
+
+Deep Translator
+
+RSS feeds
+
+⚠️ Observações
+
+alguns sites podem bloquear scraping ocasionalmente
+
+artigos com paywall podem gerar resumos menores
+
+traduções são automáticas e podem ter pequenas imprecisões
+
+📜 Licença
+
+Projeto open source para uso educacional e experimental no ecossistema Web3.

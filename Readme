@@ -1,0 +1,117 @@
+# Xuxucripto Bot
+
+Bot para Discord focado em **criptomoedas**, com suporte a:
+
+- cotação de criptoativos em tempo real
+- top 10 moedas por market cap
+- busca de notícias relevantes do mercado cripto
+- tradução automática de conteúdo para português
+- postagem automática de notícias em canal do Discord
+
+---
+
+## Visão geral
+
+O Xuxupisco Bot foi desenvolvido em **Python** com a biblioteca **discord.py** e utiliza fontes externas para:
+
+- consultar preços de criptomoedas
+- buscar notícias recentes sobre o mercado cripto
+- traduzir títulos e resumos para português
+- publicar informações diretamente no Discord
+
+O bot pode funcionar de duas formas:
+
+1. **manual**, via comandos slash no Discord
+2. **automática**, postando notícias periodicamente em um canal específico
+
+---
+
+## Funcionalidades
+
+### 1. Cotação de criptomoedas
+Comando para consultar o preço atual de ativos como:
+
+- BTC
+- ETH
+- SOL
+- LINK
+- UNI
+- LDO
+- XRP
+- DOGE
+- ADA
+- AVAX
+- ARB
+- OP
+
+Além do preço, o bot também mostra:
+
+- valor em USD
+- valor em BRL
+- variação em 24h
+- horário da última atualização
+
+---
+
+### 2. Top 10 do mercado
+Comando que mostra as 10 maiores criptomoedas por market cap.
+
+---
+
+### 3. Notícias cripto em português
+O bot busca notícias recentes em fontes públicas, filtra conteúdos relevantes do mercado cripto e traduz automaticamente para português.
+
+Também é possível filtrar por tema, como:
+
+- BTC
+- ETH
+- SOL
+- DeFi
+- ETF
+- macro
+- stablecoins
+- LINK
+- UNI
+- XRP
+- Base
+- Layer 2
+
+---
+
+### 4. Tradução
+Comando para traduzir qualquer texto para português.
+
+---
+
+### 5. Postagem automática
+Opcionalmente, o bot pode publicar notícias sozinho em um canal do Discord, sem necessidade de comandos manuais.
+
+Esse modo pode:
+
+- checar notícias em intervalos regulares
+- enviar apenas links novos
+- evitar repetição de conteúdo
+- manter um histórico local das notícias já publicadas
+
+---
+
+## Tecnologias utilizadas
+
+- Python
+- discord.py
+- requests
+- feedparser
+- deep-translator
+- python-dotenv
+
+---
+
+## Estrutura sugerida do projeto
+
+```bash
+projeto/
+├─ bot.py
+├─ .env
+├─ requirements.txt
+└─ data/
+   └─ sent_news.json

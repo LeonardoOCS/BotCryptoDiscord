@@ -5,11 +5,12 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import urlparse
 
 import requests
 import feedparser
 import discord
+from bs4 import BeautifulSoup
 from discord import app_commands
 from discord.ext import tasks
 from deep_translator import GoogleTranslator
@@ -18,13 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-
-# Opcional: coloque o ID do canal no .env para autopost
-# Exemplo: DISCORD_NEWS_CHANNEL_ID=123456789012345678
 NEWS_CHANNEL_ID = os.getenv("DISCORD_NEWS_CHANNEL_ID")
-
-# Opcional: ativa/desativa autopost no .env
-# Exemplo: ENABLE_AUTO_NEWS=true
 ENABLE_AUTO_NEWS = os.getenv("ENABLE_AUTO_NEWS", "false").lower() == "true"
 
 if not TOKEN:
@@ -69,30 +64,88 @@ KEYWORDS_GERAIS = [
     "bitcoin", "btc", "ethereum", "eth", "solana", "sol", "xrp", "dogecoin",
     "defi", "etf", "sec", "stablecoin", "layer 2", "l2", "crypto", "cripto",
     "staking", "uniswap", "chainlink", "token", "altcoin", "airdrop", "web3",
-    "arbitrum", "optimism", "base", "rollup", "fed", "treasury", "macro"
+    "arbitrum", "optimism", "base", "rollup", "fed", "treasury", "macro",
+    "smart contract", "governance", "dao", "validator", "onchain", "wallet"
 ]
 
 TOPIC_KEYWORDS = {
     "btc": ["bitcoin", "btc"],
     "bitcoin": ["bitcoin", "btc"],
-    "eth": ["ethereum", "eth", "ether"],
-    "ethereum": ["ethereum", "eth", "ether"],
+    "eth": ["ethereum", "eth", "ether", "ethereum foundation"],
+    "ethereum": ["ethereum", "eth", "ether", "ethereum foundation"],
     "sol": ["solana", "sol"],
     "solana": ["solana", "sol"],
-    "defi": ["defi", "dex", "lending", "amm", "yield", "liquidity"],
-    "etf": ["etf", "sec", "spot etf"],
-    "macro": ["fed", "inflation", "treasury", "rates", "interest rates", "cpi"],
-    "stablecoin": ["stablecoin", "usdt", "usdc", "dai", "rlusd"],
-    "link": ["chainlink", "link"],
-    "uni": ["uniswap", "uni"],
+    "defi": ["defi", "dex", "lending", "amm", "yield", "liquidity", "staking", "governance"],
+    "etf": ["etf", "sec", "spot etf", "approval", "filing"],
+    "macro": ["fed", "inflation", "treasury", "rates", "interest rates", "cpi", "liquidity"],
+    "stablecoin": ["stablecoin", "usdt", "usdc", "dai", "rlusd", "payments"],
+    "link": ["chainlink", "link", "oracle"],
+    "uni": ["uniswap", "uni", "dex", "amm"],
     "xrp": ["xrp", "ripple"],
-    "base": ["base", "coinbase layer 2"],
+    "base": ["base", "coinbase layer 2", "base chain"],
     "l2": ["layer 2", "l2", "rollup", "arbitrum", "optimism", "base"],
+    "web3": ["web3", "onchain", "wallet", "smart contract", "dao", "governance"],
 }
 
 REQUEST_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; XuxupiscoBot/1.0)"
+    "User-Agent": "Mozilla/5.0 (compatible; XuxupiscoBot/2.0; +https://discord.com)"
 }
+
+# Fontes curadas.
+# type = "official" recebe mais peso.
+# Você pode adicionar/remover feeds aqui conforme preferir.
+SOURCE_FEEDS = [
+    {
+        "name": "CoinDesk",
+        "url": "https://www.coindesk.com/arc/outboundfeeds/rss/",
+        "type": "media",
+        "topics": ["all"],
+    },
+    {
+        "name": "Cointelegraph",
+        "url": "https://cointelegraph.com/rss",
+        "type": "media",
+        "topics": ["all"],
+    },
+    {
+        "name": "Decrypt",
+        "url": "https://decrypt.co/feed",
+        "type": "media",
+        "topics": ["all"],
+    },
+    {
+        "name": "The Block",
+        "url": "https://www.theblock.co/rss.xml",
+        "type": "media",
+        "topics": ["all"],
+    },
+    {
+        "name": "Coinbase Blog",
+        "url": "https://www.coinbase.com/blog.atom",
+        "type": "official",
+        "topics": ["all", "base", "l2", "stablecoin", "etf"],
+    },
+    {
+        "name": "Uniswap Blog",
+        "url": "https://blog.uniswap.org/rss.xml",
+        "type": "official",
+        "topics": ["all", "uni", "defi", "web3"],
+    },
+    {
+        "name": "Chainlink Blog",
+        "url": "https://blog.chain.link/feed/",
+        "type": "official",
+        "topics": ["all", "link", "web3"],
+    },
+    {
+        "name": "Ethereum Foundation Blog",
+        "url": "https://blog.ethereum.org/feed.xml",
+        "type": "official",
+        "topics": ["all", "eth", "ethereum", "staking", "web3"],
+    },
+]
+
+TRANSLATOR = GoogleTranslator(source="auto", target="pt")
 
 
 def carregar_links_enviados() -> set[str]:
@@ -118,16 +171,6 @@ def salvar_links_enviados(links: set[str]) -> None:
 links_enviados = carregar_links_enviados()
 
 
-def traduzir_texto(texto: str) -> str:
-    if not texto:
-        return texto
-
-    try:
-        return GoogleTranslator(source="auto", target="pt").translate(texto)
-    except Exception:
-        return texto
-
-
 def limpar_html(texto: str) -> str:
     texto = html.unescape(texto or "")
     texto = re.sub(r"<[^>]+>", "", texto)
@@ -139,22 +182,56 @@ def normalizar_tema(tema: str) -> str:
     return (tema or "").strip().lower()
 
 
-def gerar_feeds_por_tema(tema: str = "") -> list[str]:
-    tema = normalizar_tema(tema)
+def dividir_texto_em_chunks(texto: str, limite: int = 3500) -> list[str]:
+    texto = texto.strip()
+    if len(texto) <= limite:
+        return [texto]
 
-    if tema in TOPIC_KEYWORDS:
-        consulta = " OR ".join(TOPIC_KEYWORDS[tema])
-    elif tema:
-        consulta = tema
-    else:
-        consulta = "crypto OR cryptocurrency OR bitcoin OR ethereum OR solana OR defi OR etf OR stablecoin"
+    partes = []
+    atual = ""
 
-    consulta_encoded = quote_plus(f"({consulta}) when:1d")
+    for paragrafo in re.split(r"\n{2,}", texto):
+        paragrafo = paragrafo.strip()
+        if not paragrafo:
+            continue
 
-    return [
-        f"https://news.google.com/rss/search?q={consulta_encoded}&hl=en-US&gl=US&ceid=US:en",
-        f"https://news.google.com/rss/search?q={consulta_encoded}&hl=en-GB&gl=GB&ceid=GB:en",
-    ]
+        if len(atual) + len(paragrafo) + 2 <= limite:
+            atual = f"{atual}\n\n{paragrafo}".strip()
+        else:
+            if atual:
+                partes.append(atual)
+            atual = paragrafo
+
+    if atual:
+        partes.append(atual)
+
+    return partes
+
+
+def traduzir_texto(texto: str) -> str:
+    if not texto:
+        return texto
+
+    try:
+        return TRANSLATOR.translate(texto)
+    except Exception:
+        return texto
+
+
+def traduzir_texto_longo(texto: str) -> str:
+    if not texto:
+        return texto
+
+    partes = dividir_texto_em_chunks(texto, 3200)
+    traduzidas = []
+
+    for parte in partes:
+        try:
+            traduzidas.append(TRANSLATOR.translate(parte))
+        except Exception:
+            traduzidas.append(parte)
+
+    return "\n\n".join(traduzidas).strip()
 
 
 def noticia_relevante(titulo: str, resumo: str, tema: str = "") -> bool:
@@ -168,7 +245,7 @@ def noticia_relevante(titulo: str, resumo: str, tema: str = "") -> bool:
     return any(p.lower() in texto for p in KEYWORDS_GERAIS)
 
 
-def pontuar_noticia(titulo: str, resumo: str, tema: str = "") -> int:
+def pontuar_noticia(titulo: str, resumo: str, tema: str = "", source_type: str = "media") -> int:
     texto = f"{titulo} {resumo}".lower()
     score = 0
 
@@ -183,13 +260,28 @@ def pontuar_noticia(titulo: str, resumo: str, tema: str = "") -> int:
 
     fortes = [
         "etf", "sec", "approval", "approved", "hack", "lawsuit", "regulation",
-        "institutional", "blackrock", "coinbase", "binance", "fed", "treasury"
+        "institutional", "blackrock", "coinbase", "binance", "fed", "treasury",
+        "governance", "proposal", "validator", "upgrade", "partnership"
     ]
     for palavra in fortes:
         if palavra in texto:
             score += 2
 
+    if source_type == "official":
+        score += 5
+    elif source_type == "media":
+        score += 2
+
     return score
+
+
+def feed_serve_para_tema(feed: dict, tema: str) -> bool:
+    tema = normalizar_tema(tema)
+    if not tema:
+        return True
+
+    topics = [t.lower() for t in feed.get("topics", ["all"])]
+    return "all" in topics or tema in topics
 
 
 def buscar_preco_sync(coin_id: str) -> dict:
@@ -227,20 +319,205 @@ def buscar_top10_sync() -> list[dict]:
     return resp.json()
 
 
+def normalizar_url(url: str) -> str:
+    if not url:
+        return ""
+
+    url = url.strip()
+    url = re.sub(r"#.*$", "", url)
+    return url
+
+
+def extrair_texto_artigo(url: str) -> str:
+    try:
+        resp = requests.get(url, headers=REQUEST_HEADERS, timeout=20)
+        resp.raise_for_status()
+    except Exception:
+        return ""
+
+    content_type = resp.headers.get("Content-Type", "").lower()
+    if "text/html" not in content_type:
+        return ""
+
+    try:
+        soup = BeautifulSoup(resp.text, "html.parser")
+    except Exception:
+        return ""
+
+    for tag in soup(["script", "style", "noscript", "svg", "form", "header", "footer", "nav", "aside"]):
+        tag.decompose()
+
+    candidatos = []
+
+    article = soup.find("article")
+    if article:
+        candidatos.extend(article.find_all("p"))
+
+    main = soup.find("main")
+    if main:
+        candidatos.extend(main.find_all("p"))
+
+    if not candidatos:
+        candidatos.extend(soup.find_all("p"))
+
+    paragrafos = []
+    vistos = set()
+
+    for p in candidatos:
+        texto = limpar_html(p.get_text(" ", strip=True))
+        if len(texto) < 50:
+            continue
+        if texto in vistos:
+            continue
+        vistos.add(texto)
+        paragrafos.append(texto)
+
+    texto_final = "\n\n".join(paragrafos)
+    texto_final = re.sub(r"\n{3,}", "\n\n", texto_final).strip()
+
+    if len(texto_final) > 18000:
+        texto_final = texto_final[:18000]
+
+    return texto_final
+
+
+def dividir_sentencas(texto: str) -> list[str]:
+    texto = re.sub(r"\s+", " ", texto).strip()
+    if not texto:
+        return []
+    sentencas = re.split(r"(?<=[\.\!\?])\s+", texto)
+    return [s.strip() for s in sentencas if s.strip()]
+
+
+def contar_palavras(texto: str) -> int:
+    return len(re.findall(r"\b\w+\b", texto, flags=re.UNICODE))
+
+
+def resumir_texto_extrativo(texto: str, tema: str = "", min_palavras: int = 300, max_palavras: int = 380) -> str:
+    sentencas = dividir_sentencas(texto)
+
+    if not sentencas:
+        return texto.strip()
+
+    texto_total = " ".join(sentencas)
+    if contar_palavras(texto_total) <= max_palavras:
+        return texto_total
+
+    tema = normalizar_tema(tema)
+    palavras_tema = TOPIC_KEYWORDS.get(tema, [tema]) if tema else []
+    palavras_tema = [p.lower() for p in palavras_tema if p]
+
+    ranking = []
+
+    for i, sentenca in enumerate(sentencas):
+        s_lower = sentenca.lower()
+        score = 0
+
+        for palavra in KEYWORDS_GERAIS:
+            if palavra.lower() in s_lower:
+                score += 1
+
+        for palavra in palavras_tema:
+            if palavra in s_lower:
+                score += 3
+
+        if i < 5:
+            score += 3
+        elif i < 10:
+            score += 1
+
+        tamanho = contar_palavras(sentenca)
+        if 12 <= tamanho <= 40:
+            score += 2
+        elif 8 <= tamanho <= 55:
+            score += 1
+
+        if any(x in s_lower for x in ["according", "announced", "said", "reported", "proposal", "update", "launch", "approval"]):
+            score += 1
+
+        ranking.append((i, score, sentenca))
+
+    ranking.sort(key=lambda x: (-x[1], x[0]))
+
+    selecionadas = []
+    indices = set()
+    palavras = 0
+
+    for i, score, sentenca in ranking:
+        if i in indices:
+            continue
+        selecionadas.append((i, sentenca))
+        indices.add(i)
+        palavras += contar_palavras(sentenca)
+        if palavras >= min_palavras:
+            break
+
+    if palavras < min_palavras:
+        for i, sentenca in enumerate(sentencas):
+            if i in indices:
+                continue
+            selecionadas.append((i, sentenca))
+            indices.add(i)
+            palavras += contar_palavras(sentenca)
+            if palavras >= min_palavras:
+                break
+
+    selecionadas.sort(key=lambda x: x[0])
+
+    resumo = " ".join(s for _, s in selecionadas).strip()
+
+    while contar_palavras(resumo) > max_palavras:
+        partes = dividir_sentencas(resumo)
+        if len(partes) <= 1:
+            break
+        partes.pop()
+        resumo = " ".join(partes).strip()
+
+    return resumo
+
+
+def extrair_resumo_base(entry) -> str:
+    candidatos = [
+        getattr(entry, "summary", ""),
+        getattr(entry, "description", ""),
+    ]
+
+    if hasattr(entry, "content") and entry.content:
+        for item in entry.content:
+            value = item.get("value", "")
+            if value:
+                candidatos.append(value)
+
+    for c in candidatos:
+        texto = limpar_html(c)
+        if texto:
+            return texto
+
+    return ""
+
+
+def obter_dominio(url: str) -> str:
+    try:
+        return urlparse(url).netloc.lower()
+    except Exception:
+        return ""
+
+
 def buscar_noticias_sync(limite: int = 1, tema: str = "", somente_novas: bool = False) -> list[dict]:
     noticias = []
-    feeds = gerar_feeds_por_tema(tema)
 
-    for feed_url in feeds:
+    feeds_filtrados = [f for f in SOURCE_FEEDS if feed_serve_para_tema(f, tema)]
+
+    for source in feeds_filtrados:
         try:
-            feed = feedparser.parse(feed_url)
+            feed = feedparser.parse(source["url"])
         except Exception:
             continue
 
-        for entry in feed.entries[:20]:
+        for entry in feed.entries[:30]:
             titulo_en = limpar_html(getattr(entry, "title", ""))
-            resumo_en = limpar_html(getattr(entry, "summary", ""))
-            link = getattr(entry, "link", "").strip()
+            resumo_feed_en = extrair_resumo_base(entry)
+            link = normalizar_url(getattr(entry, "link", ""))
 
             if not titulo_en or not link:
                 continue
@@ -248,30 +525,56 @@ def buscar_noticias_sync(limite: int = 1, tema: str = "", somente_novas: bool = 
             if somente_novas and link in links_enviados:
                 continue
 
-            if not noticia_relevante(titulo_en, resumo_en, tema):
+            if not noticia_relevante(titulo_en, resumo_feed_en, tema):
                 continue
 
-            score = pontuar_noticia(titulo_en, resumo_en, tema)
+            corpo_artigo_en = extrair_texto_artigo(link)
+            base_resumo_en = corpo_artigo_en if corpo_artigo_en else resumo_feed_en
+
+            if not base_resumo_en:
+                continue
+
+            resumo_en = resumir_texto_extrativo(
+                texto=base_resumo_en,
+                tema=tema,
+                min_palavras=300,
+                max_palavras=380
+            )
+
+            score = pontuar_noticia(
+                titulo=titulo_en,
+                resumo=f"{resumo_feed_en} {resumo_en}",
+                tema=tema,
+                source_type=source["type"]
+            )
+
+            resumo_pt = traduzir_texto_longo(resumo_en)
+            titulo_pt = traduzir_texto(titulo_en)
 
             noticias.append({
                 "titulo_en": titulo_en,
-                "resumo_en": resumo_en[:400],
-                "titulo_pt": traduzir_texto(titulo_en),
-                "resumo_pt": traduzir_texto(resumo_en[:4000]) if resumo_en else "",
+                "titulo_pt": titulo_pt,
+                "resumo_en": resumo_en,
+                "resumo_pt": resumo_pt,
                 "link": link,
                 "score": score,
+                "source_name": source["name"],
+                "source_type": source["type"],
+                "domain": obter_dominio(link),
+                "word_count": contar_palavras(resumo_pt or resumo_en),
             })
 
     unicas = []
     vistos = set()
 
     for n in noticias:
-        if n["link"] in vistos:
+        chave = n["link"]
+        if chave in vistos:
             continue
-        vistos.add(n["link"])
+        vistos.add(chave)
         unicas.append(n)
 
-    unicas.sort(key=lambda x: x["score"], reverse=True)
+    unicas.sort(key=lambda x: (x["score"], x["word_count"]), reverse=True)
     return unicas[:limite]
 
 
@@ -281,21 +584,42 @@ def formatar_variacao(valor) -> str:
     return f"{valor:.2f}%"
 
 
+def limitar_embed_texto(texto: str, limite: int = 3800) -> str:
+    texto = (texto or "").strip()
+    if len(texto) <= limite:
+        return texto
+    return texto[:limite - 3].rstrip() + "..."
+
+
 def embed_noticia(item: dict, tema: str = "") -> discord.Embed:
     titulo = item.get("titulo_pt") or item.get("titulo_en") or "Notícia"
     resumo = item.get("resumo_pt") or item.get("resumo_en") or "Sem resumo."
     link = item.get("link", "")
+    source_name = item.get("source_name", "Fonte não identificada")
+    source_type = item.get("source_type", "media")
+    domain = item.get("domain", "")
+    word_count = item.get("word_count", 0)
+
+    tipo_fonte = "Oficial" if source_type == "official" else "Mídia especializada"
 
     embed = discord.Embed(
         title=titulo[:256],
-        description=resumo[:10000] if resumo else "Sem resumo.",
+        description=limitar_embed_texto(resumo, 3800),
         url=link
     )
 
     if tema:
         embed.add_field(name="Tema", value=tema.upper(), inline=True)
 
-    embed.set_footer(text="Notícia traduzida automaticamente para português")
+    embed.add_field(name="Fonte", value=source_name[:1024], inline=True)
+    embed.add_field(name="Tipo", value=tipo_fonte, inline=True)
+    embed.add_field(name="Palavras no resumo", value=str(word_count), inline=True)
+
+    if domain:
+        embed.add_field(name="Domínio", value=domain[:1024], inline=False)
+
+    embed.add_field(name="Link original", value=link[:1024], inline=False)
+    embed.set_footer(text="Resumo extrativo traduzido automaticamente para português")
     return embed
 
 
@@ -377,10 +701,10 @@ async def top10(interaction: discord.Interaction):
         await interaction.followup.send(f"Erro ao buscar top 10: {e}")
 
 
-@tree.command(name="noticias", description="Busca notícias cripto relevantes em português")
+@tree.command(name="noticias", description="Busca notícias cripto/web3 relevantes em português")
 @app_commands.describe(
     quantidade="Número de notícias",
-    tema="Tema opcional: btc, eth, sol, defi, etf, macro, stablecoin, link, uni, xrp, base, l2"
+    tema="Tema opcional: btc, eth, sol, defi, etf, macro, stablecoin, link, uni, xrp, base, l2, web3"
 )
 async def noticias(
     interaction: discord.Interaction,
@@ -409,7 +733,7 @@ async def traduzir(interaction: discord.Interaction, texto: str):
     await interaction.response.defer()
 
     try:
-        traducao = await asyncio.to_thread(traduzir_texto, texto)
+        traducao = await asyncio.to_thread(traduzir_texto_longo, texto)
         await interaction.followup.send(traducao[:1900] if traducao else "Não foi possível traduzir.")
     except Exception as e:
         await interaction.followup.send(f"Erro ao traduzir: {e}")

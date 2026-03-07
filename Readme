@@ -4,24 +4,24 @@ Bot de Discord focado no ecossistema Cripto e Web3, que coleta notícias de font
 Além disso, fornece dados de mercado em tempo real para criptomoedas.
 
 
-🚀 Features
+🚀 Funcionalidades
 
 📰 Curadoria automática de notícias Web3
 
 O bot coleta notícias de fontes relevantes do setor:
 
-CoinDesk
-Cointelegraph
-Decrypt
-The Block
-Ethereum Foundation
-Uniswap Blog
-Chainlink Blog
-Coinbase Blog
+-CoinDesk
+-Cointelegraph
+-Decrypt
+-The Block
+-Ethereum Foundation
+-Uniswap Blog
+-Chainlink Blog
+-Coinbase Blog
 
 Cada notícia passa por um pipeline inteligente:
 
-RSS feed
+RSS feed 
    ↓
 Filtro por palavras-chave Web3
    ↓
@@ -97,38 +97,39 @@ Intervalo padrão: 60 minutos
               | (Crypto Media)   | 
               +---------+--------+
                         |
-                        |
-                        v
+                        ↓
                +----------------+
                | Filtro Web3    |
                | Keywords       |
                +--------+-------+
                         |
-                        v
+                        ↓
                +----------------+
                | Article Scraper|
                | BeautifulSoup  |
                +--------+-------+
                         |
-                        v
+                        ↓
                +----------------+
                | Summarizer     |
                | (~300 words)   |
                +--------+-------+
                         |
-                        v
+                        ↓
                +----------------+
                | Translator     |
                | DeepTranslator |
                +--------+-------+
                         |
-                        v
+                        ↓
                +----------------+
                | Discord Embed  |
                | Publication    |
                +----------------+
 
+
 ⚙️ Instalação
+
 1️⃣ Clonar o projeto
 git clone https://github.com/seu-repositorio/xuxucrypto-bot.git     
 
@@ -163,7 +164,6 @@ DISCORD_BOT_TOKEN
 Token do bot criado em: Discord Developer Portal
 
 ENABLE_AUTO_NEWS
-
 true
 
 ativa postagem automática.
@@ -177,10 +177,9 @@ ID do canal onde as notícias serão publicadas.
 
 ▶️ Executando o bot
 python bot.py
-
 ou
-
 python3 bot.py
+
 
 Se estiver funcionando aparecerá:
 
@@ -204,22 +203,22 @@ Arquivo que registra links já enviados para evitar duplicação de notícias.
 
 🧩 Tecnologias utilizadas
 
-Python
-Discord.py
-BeautifulSoup
-Feedparser
-CoinGecko API
-Deep Translator
-RSS feeds
+-Python
+-Discord.py
+-BeautifulSoup
+-Feedparser
+-CoinGecko API
+-Deep Translator
+-RSS feeds
 
 
 🌐 Deploy 24/7
 
 Para manter o bot online permanentemente, você pode usar:
-VPS
-pm2
-systemd
-screen
+-VPS
+-pm2
+-systemd
+-screen
 
 Plataformas:
 -Railway
@@ -235,17 +234,15 @@ traduções são automáticas e podem ter pequenas imprecisões
 
 📜 Licença
 
-MIT License.
 Uso livre para projetos educacionais e experimentais no ecossistema Web3.
 
 
 👨‍💻 Contribuição
 
-Contribuições são bem-vindas.
+Contribuições são muito bem-vindas.
 
 Sugestões:
 melhorar o sistema de resumo
 análise de sentimento de notícias
-integração com Twitter/X
 alertas on-chain
 dashboard web

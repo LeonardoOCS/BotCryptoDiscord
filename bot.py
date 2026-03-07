@@ -6,10 +6,12 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+from email.utils import parsedate_to_datetime
 
 import requests
 import feedparser
 import discord
+
 from bs4 import BeautifulSoup
 from discord import app_commands
 from discord.ext import tasks
@@ -144,6 +146,9 @@ SOURCE_FEEDS = [
 
 TRANSLATOR = GoogleTranslator(source="auto", target="pt")
 
+# Janela máxima para considerar notícia "recente"
+MAX_NEWS_AGE_HOURS = 48
+
 
 def carregar_links_enviados() -> set[str]:
     if not SENT_NEWS_FILE.exists():
@@ -242,7 +247,88 @@ def noticia_relevante(titulo: str, resumo: str, tema: str = "") -> bool:
     return any(p.lower() in texto for p in KEYWORDS_GERAIS)
 
 
-def pontuar_noticia(titulo: str, resumo: str, tema: str = "", source_type: str = "media") -> int:
+def obter_data_publicacao(entry) -> datetime | None:
+    try:
+        if getattr(entry, "published_parsed", None):
+            return datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+    except Exception:
+        pass
+
+    try:
+        if getattr(entry, "updated_parsed", None):
+            return datetime(*entry.updated_parsed[:6], tzinfo=timezone.utc)
+    except Exception:
+        pass
+
+    for campo in ["published", "updated", "pubDate"]:
+        valor = getattr(entry, campo, None)
+        if not valor:
+            continue
+        try:
+            dt = parsedate_to_datetime(valor)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+        except Exception:
+            continue
+
+    return None
+
+
+def calcular_idade_horas(data_publicacao: datetime | None) -> float | None:
+    if not data_publicacao:
+        return None
+
+    agora = datetime.now(timezone.utc)
+    diferenca = agora - data_publicacao
+    return diferenca.total_seconds() / 3600
+
+
+def noticia_esta_recente(data_publicacao: datetime | None, max_age_hours: int = MAX_NEWS_AGE_HOURS) -> bool:
+    idade_horas = calcular_idade_horas(data_publicacao)
+
+    if idade_horas is None:
+        # Se a feed não trouxer data, mantemos como elegível,
+        # mas sem bônus forte de recência.
+        return True
+
+    if idade_horas < 0:
+        return True
+
+    return idade_horas <= max_age_hours
+
+
+def pontuacao_recencia(data_publicacao: datetime | None) -> int:
+    idade_horas = calcular_idade_horas(data_publicacao)
+
+    if idade_horas is None:
+        return 0
+
+    if idade_horas <= 6:
+        return 12
+    if idade_horas <= 12:
+        return 9
+    if idade_horas <= 24:
+        return 6
+    if idade_horas <= 48:
+        return 3
+
+    return -10
+
+
+def formatar_data_publicacao(data_publicacao: datetime | None) -> str:
+    if not data_publicacao:
+        return "Data não informada"
+    return data_publicacao.astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
+
+
+def pontuar_noticia(
+    titulo: str,
+    resumo: str,
+    tema: str = "",
+    source_type: str = "media",
+    data_publicacao: datetime | None = None
+) -> int:
     texto = f"{titulo} {resumo}".lower()
     score = 0
 
@@ -268,6 +354,8 @@ def pontuar_noticia(titulo: str, resumo: str, tema: str = "", source_type: str =
         score += 5
     elif source_type == "media":
         score += 2
+
+    score += pontuacao_recencia(data_publicacao)
 
     return score
 
@@ -540,6 +628,7 @@ def buscar_noticias_sync(limite: int = 1, tema: str = "", somente_novas: bool = 
             titulo_en = limpar_html(getattr(entry, "title", ""))
             resumo_feed_en = extrair_resumo_base(entry)
             link = normalizar_url(getattr(entry, "link", ""))
+            data_publicacao = obter_data_publicacao(entry)
 
             if not titulo_en or not link:
                 continue
@@ -548,6 +637,9 @@ def buscar_noticias_sync(limite: int = 1, tema: str = "", somente_novas: bool = 
                 continue
 
             if not noticia_relevante(titulo_en, resumo_feed_en, tema):
+                continue
+
+            if not noticia_esta_recente(data_publicacao, MAX_NEWS_AGE_HOURS):
                 continue
 
             corpo_artigo_en = extrair_texto_artigo(link)
@@ -567,7 +659,8 @@ def buscar_noticias_sync(limite: int = 1, tema: str = "", somente_novas: bool = 
                 titulo=titulo_en,
                 resumo=f"{resumo_feed_en} {resumo_en}",
                 tema=tema,
-                source_type=source["type"]
+                source_type=source["type"],
+                data_publicacao=data_publicacao
             )
 
             resumo_pt = traduzir_texto_longo(resumo_en)
@@ -584,6 +677,9 @@ def buscar_noticias_sync(limite: int = 1, tema: str = "", somente_novas: bool = 
                 "source_type": source["type"],
                 "domain": obter_dominio(link),
                 "word_count": contar_palavras(resumo_pt or resumo_en),
+                "published_at": data_publicacao,
+                "published_at_str": formatar_data_publicacao(data_publicacao),
+                "age_hours": calcular_idade_horas(data_publicacao),
             })
 
     unicas = []
@@ -596,7 +692,14 @@ def buscar_noticias_sync(limite: int = 1, tema: str = "", somente_novas: bool = 
         vistos.add(chave)
         unicas.append(n)
 
-    unicas.sort(key=lambda x: (x["score"], x["word_count"]), reverse=True)
+    unicas.sort(
+        key=lambda x: (
+            x["score"],
+            -(x["age_hours"] if x["age_hours"] is not None else 999999),
+            x["word_count"]
+        ),
+        reverse=True
+    )
     return unicas[:limite]
 
 
@@ -628,6 +731,7 @@ def embed_noticia(item: dict, tema: str = "") -> discord.Embed:
     source_type = item.get("source_type", "media")
     domain = item.get("domain", "")
     word_count = item.get("word_count", 0)
+    published_at_str = item.get("published_at_str", "Data não informada")
 
     tipo_fonte = "Oficial" if source_type == "official" else "Mídia especializada"
 
@@ -642,6 +746,7 @@ def embed_noticia(item: dict, tema: str = "") -> discord.Embed:
 
     embed.add_field(name="Fonte", value=source_name[:1024], inline=True)
     embed.add_field(name="Tipo", value=tipo_fonte, inline=True)
+    embed.add_field(name="Publicada em", value=published_at_str[:1024], inline=True)
     embed.add_field(name="Palavras no resumo", value=str(word_count), inline=True)
 
     if domain:
@@ -746,7 +851,7 @@ async def noticias(
         itens = await asyncio.to_thread(buscar_noticias_sync, quantidade, tema, False)
 
         if not itens:
-            await interaction.followup.send("Não encontrei notícias relevantes agora.")
+            await interaction.followup.send("Não encontrei notícias relevantes e recentes agora.")
             return
 
         for item in itens[:quantidade]:
@@ -788,7 +893,7 @@ async def postar_noticias_automaticamente():
         itens = await asyncio.to_thread(buscar_noticias_sync, 1, "", True)
 
         if not itens:
-            print("Nenhuma notícia nova encontrada no ciclo atual.")
+            print("Nenhuma notícia nova e recente encontrada no ciclo atual.")
             return
 
         for item in itens:

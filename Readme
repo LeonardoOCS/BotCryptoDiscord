@@ -1,12 +1,15 @@
 🧠 XuxuCrypto Bot
-Bot de Discord focado em notícias, dados e atualizações do ecossistema cripto e Web3, com tradução automática para português.
-O bot coleta notícias de fontes relevantes, gera resumos estruturados (~300 palavras), traduz para português e publica diretamente no Discord.
-Também oferece comandos para consultar preços de criptomoedas e ranking do mercado.
 
-🚀 Funcionalidades
-📰 Notícias Web3 curadas
+Bot de Discord focado no ecossistema Cripto e Web3, que coleta notícias de fontes confiáveis, gera resumos estruturados (~300 palavras), traduz automaticamente para português e publica no servidor.
+Além disso, fornece dados de mercado em tempo real para criptomoedas.
 
-O bot coleta conteúdo de fontes especializadas do setor:
+
+🚀 Features
+
+📰 Curadoria automática de notícias Web3
+
+O bot coleta notícias de fontes relevantes do setor:
+
 CoinDesk
 Cointelegraph
 Decrypt
@@ -16,39 +19,47 @@ Uniswap Blog
 Chainlink Blog
 Coinbase Blog
 
-Cada notícia passa por um pipeline automático:
-coleta do RSS
-filtragem por palavras-chave Web3
-extração do conteúdo do artigo
-geração de resumo (~300 palavras)
-divisão em parágrafos
-tradução automática para português
-Resultado: notícias fáceis de ler diretamente no Discord.
+Cada notícia passa por um pipeline inteligente:
 
-💰 Consulta de preço de criptomoedas
+RSS feed
+   ↓
+Filtro por palavras-chave Web3
+   ↓
+Extração do conteúdo do artigo
+   ↓
+Resumo automático (~300 palavras)
+   ↓
+Divisão em parágrafos
+   ↓
+Tradução para português
+   ↓
+Publicação no Discord
 
-Busca dados em tempo real via CoinGecko API.
+Resultado: notícias claras e legíveis diretamente no Discord.
 
-Exemplo
+
+💰 Comandos disponíveis
+Preço de criptomoedas
+
+Consulta dados via CoinGecko API.
+
 /preco btc
 /preco eth
 /preco link
 
 Retorna:
+
 preço em USD
 preço em BRL
-variação nas últimas 24h
-🏆 Top 10 criptomoedas
+variação 24h
 
+Top 10 criptomoedas
+/top10
 Mostra as maiores criptomoedas por market cap.
 
-/top10
-🔎 Busca de notícias por tema
-/noticias
+Buscar notícias
+/noticias  ou   /noticias quantidade:3 tema:eth
 
-ou
-
-/noticias quantidade:3 tema:eth
 Temas disponíveis
 btc
 eth
@@ -64,27 +75,65 @@ base
 l2
 web3
 
-
-🌍 Tradução de texto
+Tradutor
 /traduzir texto: Hello world
-
 Traduz automaticamente para português.
 
 🤖 Postagem automática de notícias
-
 O bot pode publicar notícias automaticamente em um canal.
 
-Funciona da seguinte forma:
-busca novas notícias
-evita duplicações
-publica apenas conteúdo relevante
-intervalo padrão de 60 minutos
+Fluxo:
+
+1️⃣ busca novas notícias
+2️⃣ evita duplicações
+3️⃣ gera resumo
+4️⃣ publica no canal
+
+Intervalo padrão: 60 minutos
+
+🏗 Arquitetura do Bot
+              +------------------+
+              |   RSS Feeds      |
+              | (Crypto Media)   | 
+              +---------+--------+
+                        |
+                        |
+                        v
+               +----------------+
+               | Filtro Web3    |
+               | Keywords       |
+               +--------+-------+
+                        |
+                        v
+               +----------------+
+               | Article Scraper|
+               | BeautifulSoup  |
+               +--------+-------+
+                        |
+                        v
+               +----------------+
+               | Summarizer     |
+               | (~300 words)   |
+               +--------+-------+
+                        |
+                        v
+               +----------------+
+               | Translator     |
+               | DeepTranslator |
+               +--------+-------+
+                        |
+                        v
+               +----------------+
+               | Discord Embed  |
+               | Publication    |
+               +----------------+
 
 ⚙️ Instalação
 1️⃣ Clonar o projeto
-git clone https://github.com/seu-repositorio/xuxucrypto-bot.git
+git clone https://github.com/seu-repositorio/xuxucrypto-bot.git     
 
-ou simplesmente baixe os arquivos.
+ou baixe os arquivos.
+
 
 2️⃣ Instalar dependências
 pip install discord.py
@@ -94,99 +143,109 @@ pip install beautifulsoup4
 pip install deep-translator
 pip install python-dotenv
 
-ou usando:
+ou
 
 pip install -r requirements.txt
+
+
 🔐 Configuração
 
-Crie um arquivo .env na raiz do projeto.
+Crie um arquivo .env:
 
-Exemplo:
 DISCORD_BOT_TOKEN=SEU_TOKEN_AQUI
 ENABLE_AUTO_NEWS=true
 DISCORD_NEWS_CHANNEL_ID=ID_DO_CANAL
 
 Variáveis
+
 DISCORD_BOT_TOKEN
 
-Token do bot criado no Discord Developer Portal.
+Token do bot criado em: Discord Developer Portal
 
 ENABLE_AUTO_NEWS
 
 true
 
-Ativa postagem automática de notícias.
+ativa postagem automática.
+
 
 DISCORD_NEWS_CHANNEL_ID
 
-ID do canal onde o bot irá postar notícias automaticamente.
+ID do canal onde as notícias serão publicadas.
+
+
 
 ▶️ Executando o bot
-
-No terminal:
 python bot.py
+
 ou
+
 python3 bot.py
 
-Se estiver tudo correto aparecerá:
+Se estiver funcionando aparecerá:
 
 Bot online como XuxuCrypto
 Slash commands sincronizados com sucesso.
+
+
 📂 Estrutura do projeto
-project/
+xuxucrypto-bot
 │
-├─ bot.py
-├─ .env
+├── bot.py
+├── .env
+├── README.md
 │
-├─ data/
-│   └─ sent_news.json
-│
-└─ README.md
+├── data
+│   └── sent_news.json
 sent_news.json
 
-Arquivo usado para registrar links já enviados e evitar duplicação de notícias.
+Arquivo que registra links já enviados para evitar duplicação de notícias.
 
-🧠 Como o sistema de notícias funciona
 
-Pipeline simplificado:
-
-RSS feeds
-   ↓
-Filtro de relevância
-   ↓
-Extração do artigo
-   ↓
-Resumo automático
-   ↓
-Tradução
-   ↓
-Formatação em parágrafos
-   ↓
-Publicação no Discord
 🧩 Tecnologias utilizadas
 
 Python
-
 Discord.py
-
 BeautifulSoup
-
 Feedparser
-
 CoinGecko API
-
 Deep Translator
-
 RSS feeds
 
+
+🌐 Deploy 24/7
+
+Para manter o bot online permanentemente, você pode usar:
+VPS
+pm2
+systemd
+screen
+
+Plataformas:
+-Railway
+-Render
+-Fly.io
+-DigitalOcean
+
+
 ⚠️ Observações
-
-alguns sites podem bloquear scraping ocasionalmente
-
+alguns sites podem bloquear scraping
 artigos com paywall podem gerar resumos menores
-
 traduções são automáticas e podem ter pequenas imprecisões
 
 📜 Licença
 
-Projeto open source para uso educacional e experimental no ecossistema Web3.
+MIT License.
+Uso livre para projetos educacionais e experimentais no ecossistema Web3.
+
+
+👨‍💻 Contribuição
+
+Contribuições são bem-vindas.
+
+Sugestões:
+melhorar o sistema de resumo
+análise de sentimento de notícias
+integração com Twitter/X
+alertas on-chain
+dashboard web
